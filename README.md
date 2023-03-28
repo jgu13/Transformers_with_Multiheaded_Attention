@@ -1,1 +1,2 @@
-# Transformers_with_Multiheaded_Attention
+# Transformer_with_Multiheaded_Attention
+Implemented RNN and transformer with attention mechanisms
