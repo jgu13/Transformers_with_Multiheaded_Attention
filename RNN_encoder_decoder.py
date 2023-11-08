@@ -52,10 +52,6 @@ class GRU(nn.Module):
         - h (`torch.FloatTensor` of shape `(1, batch_size, hidden_size)`)
     """
 
-    # ==========================
-    # TODO: Write your code here
-    # ==========================
-    
     seq_length = inputs.size(1)
     hidden_states = hidden_states.transpose(0, 1)
     h_t = hidden_states # B x 1 x H
@@ -114,9 +110,6 @@ class Attn(nn.Module):
         x_attn (`torch.FloatTensor` of shape `(batch_size, sequence_length, 1)`)
             The attention vector.
         """
-        # ==========================
-        # TODO: Write your code here
-        # ==========================
         
         # For each batch, concatenate the last layer of hidden states with each time step (sequence) of the embedded new input
         hidden_states = hidden_states[-1:,:,:] # use the last layer, 1 x B x H
@@ -187,11 +180,6 @@ class Encoder(nn.Module):
             - h (`torch.FloatTensor` of shape `(num_layers, batch_size, hidden_size)`)
         """
 
-        # ==========================
-        # TODO: Write your code here
-        # ==========================
-        print("Inputs has size: {}".format(inputs.size()))
-        print("hidden_states has size: {}".format(hidden_states.size()))
         inputs = self.embedding(inputs)
         inputs = self.dropout(inputs)
         outputs, hidden_states = self.rnn(inputs, hidden_states) # outputs has shape (B, T, 2*hidden_size). Hidden_states has the shape (2*num_layers, B, hidden_size)
@@ -252,10 +240,6 @@ class DecoderAttn(nn.Module):
             The final hidden state. 
             - h (`torch.FloatTensor` of shape `(num_layers, batch_size, hidden_size)`)
         """
-
-        # ==========================
-        # TODO: Write your code here
-        # ==========================
         
         # Encoder dropout
         dropout = self.dropout(inputs)
