@@ -35,9 +35,6 @@ class LayerNorm(nn.Module):
             The output tensor, having the same shape as `inputs`.
         """
 
-        # ==========================
-        # TODO: Write your code here
-        # ==========================
         mean = torch.mean(inputs, dim=-1, keepdim=True)
         var = torch.var(inputs, dim=-1, keepdim=True, unbiased=False)
         outputs = (inputs - mean) / torch.sqrt(var + self.eps)
@@ -58,9 +55,6 @@ class MultiHeadedAttention(nn.Module):
         self.sequence_length = sequence_length
         self.in_features = self.num_heads * self.head_size
         self.out_features = self.num_heads * self.head_size
-        # ==========================
-        # TODO: Write your code here
-        # ==========================
 
         self.W_q = nn.Linear(in_features=self.in_features, out_features=self.out_features, bias=True)
         self.W_v = nn.Linear(in_features=self.in_features, out_features=self.out_features, bias=True)
@@ -99,32 +93,17 @@ class MultiHeadedAttention(nn.Module):
             Tensor containing the attention weights for all the heads and all
             the sequences in the batch.
         """
-        # ==========================
-        # TODO: Write your code here
-        # ==========================
         # queries has shape (B, m, T, d)
-        B = queries.size(0)
-        attn_weights = []
-        for b in range(B):
-          head_weights = []
-          for m in range(self.num_heads):
-            x_t = queries[b,m] @ keys[b,m].t() # T x T
-            x_t = x_t / np.sqrt(self.head_size)
-            if mask is not None:
-              batch_mask = mask[b,:] # (1, T)
-              batch_mask = batch_mask.repeat(x_t.size(0), 1) # T x T
-              # print("Batch mask size: {}".format(batch_mask.size()))
-              # print("x_t size: {}".format(x_t.size()))
-              x_t = x_t.masked_fill(batch_mask==0, float('-inf'))
-            x_t = x_t.unsqueeze(0) # 1 x T x T
-            head_weights.append(x_t)
-          head_weights = torch.cat(head_weights, dim=0) # m x T x T
-          head_weights = head_weights.unsqueeze(0) # 1 x m x T x T
-          # print(head_weights.size())
-          attn_weights.append(head_weights)
-        attn_weights = torch.cat(attn_weights, dim=0) # B x m x T x T
-        attn_weights = nn.Softmax(dim=3)(attn_weights) # softmax is applied to the entire sequence 
-        return attn_weights
+        keys_t = keys.transpose(2,3)
+        similarity_score = torch.matmul(queries, keys_t) / np.sqrt(self.head_size) # B x m x T x T
+
+        if mask is not None:
+            mask = mask.unsqueeze(1).unsqueeze(2) # B x 1 x 1 x T
+            similarity_score = similarity_score.masked_fill(mask == 0, -1e9)
+        
+        attention_weights = self.soft_max(similarity_score)
+
+        return attention_weights 
         
         
     def apply_attention(self, queries, keys, values, mask=None):
@@ -173,24 +152,9 @@ class MultiHeadedAttention(nn.Module):
         # TODO: Write your code here
         # ==========================
         # split queries, keys and values
-        attn_weights = self.get_attention_weights(queries, keys, mask) # B x m x T x T
-        Batch_size = values.size(0)
-        num_heads = values.size(1)
-        attended_values = []
-        for b in range(Batch_size):
-            head_values = []
-            for m in range(num_heads):
-                attn_weight = attn_weights[b, m] # T x T
-                value = values[b, m] # T x b
-                attended_v = torch.mm(attn_weight, value) # T x b
-                attended_v = attended_v.unsqueeze(0) # 1 x T x b
-                head_values.append(attended_v)
-            head_values = torch.cat(head_values, dim=0) # m x T x b
-            head_values = head_values.unsqueeze(0) # 1 x m x T x b
-            attended_values.append(head_values)
-        attended_values = torch.cat(attended_values, dim=0) # B x m x T x b
-        # print("attended_values shape: {}".format(attended_values.shape))
-        outputs = self.merge_heads(attended_values) # B x T x mb
+        attention_weights = self.get_attention_weights(queries, keys, mask) # B x m x T x T
+        attended_values = torch.matmul(attention_weights, values) # B x m x T x b
+        outputs = self.merge_heads(attended_values)
         return outputs
 
 
@@ -218,9 +182,6 @@ class MultiHeadedAttention(nn.Module):
             definition of the input `tensor` above.
         """
 
-        # ==========================
-        # TODO: Write your code here
-        # ==========================
         tensor = torch.reshape(tensor, (tensor.size(0), tensor.size(1), self.num_heads, -1)) # B x T x m x d
         tensor = tensor.transpose(1,2) # B x m x T x d
         return tensor
@@ -248,9 +209,6 @@ class MultiHeadedAttention(nn.Module):
             definition of the input `tensor` above.
         """
 
-        # ==========================
-        # TODO: Write your code here
-        # ==========================
         tensor = tensor.transpose(1, 2) # [0, 2, 1, 3]
         new_shape = (tensor.size(0), tensor.size(1), -1) # [0, 2, num_heads * 1 + 3]
         tensor = torch.reshape(tensor, new_shape)
@@ -291,9 +249,6 @@ class MultiHeadedAttention(nn.Module):
             Tensor containing the output of multi-headed attention for all the
             sequences in the batch, and all positions in each sequence.
         """
-        # ==========================
-        # TODO: Write your code here
-        # ==========================
 
         # linear projection of hidden states into queries, keys and values
         queries = self.W_q(hidden_states) 
@@ -448,12 +403,10 @@ class Transformer(nn.Module):
         cls_token = self.cls_token.repeat(B, 1, 1)
         x = torch.cat([cls_token, x], dim=1) # B x T x embed_dim
         if mask is not None:
-            mask = torch.cat((torch.ones((B,1)), mask), dim=1) # augment the mask by 1
+            mask = torch.cat((torch.ones((B,1)).to('cuda'), mask), dim=1) # augment the mask by 1
+            mask = mask.to('cuda')
         x = x + self.pos_embedding[:,:T+1]
         # Add dropout and then the transformer
-        # ==========================
-        # TODO: Write your code here
-        # ==========================
         x = self.dropout(x)
         # Encoder
         for m in self.transformer:
@@ -463,7 +416,6 @@ class Transformer(nn.Module):
         # Decoder
         x = self.dropout(x)
         for m in self.transformer:
-            decoder_output = m(x, mask)
             x = decoder_output
         
         #Take the cls token representation and send it to mlp_head
